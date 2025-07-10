@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>闽南标会计算器 - 完整版</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+        h1 { color: #c00; text-align: center; }
+        .input-area { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .input-row { margin-bottom: 15px; display: flex; align-items: center; }
+        label { width: 150px; font-weight: bold; }
+        input, select { padding: 8px; width: 200px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #c00; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #a00; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
+        th { background: #f2f2f2; }
+        .profit { color: green; font-weight: bold; }
+        .loss { color: red; font-weight: bold; }
+        .highlight { background-color: #ffeb3b; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <h1>闽南标会（会子）计算器</h1>
+    
+    <div class="input-area">
+        <div class="input-row">
+            <label for="totalPeople">参与人数：</label>
+            <input type="number" id="totalPeople" min="2" value="30">
+        </div>
+        <div class="input-row">
+            <label for="baseMoney">每期会金（元）：</label>
+            <input type="number" id="baseMoney" min="100" value="1000">
+        </div>
+        <div class="input-row">
+            <label for="bidType">竞标方式：</label>
+            <select id="bidType">
+                <option value="fixed">固定利息递减</option>
+                <option value="custom">自定义利息</option>
+            </select>
+        </div>
+        <div class="input-row" id="fixedBidGroup">
+            <label for="firstBid">首期利息（元）：</label>
+            <input type="number" id="firstBid" min="0" value="300">
+        </div>
+        <div class="input-row" id="fixedBidGroup2">
+            <label for="bidDecrease">每期递减（元）：</label>
+            <input type="number" id="bidDecrease" min="0" value="20">
+        </div>
+        <div id="customBidGroup" class="hidden">
+            <p><strong>自定义每期利息：</strong></p>
+            <div id="bidInputs"></div>
+        </div>
+        <button id="calculateBtn">计算</button>
+    </div>
+    
+    <div id="result">
+        <h2>计算结果</h2>
+        <div id="summary"></div>
+        <div id="resultTable">请先设置参数并点击"计算"按钮</div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化
+            initBidInputs();
+            
+            // 事件监听
+            document.getElementById('bidType').addEventListener('change', toggleBidType);
+            document.getElementById('totalPeople').addEventListener('change', function() {
+                if(document.getElementById('bidType').value === 'custom') {
+                    initBidInputs();
+                }
+            });
+            document.getElementById('calculateBtn').addEventListener('click', calculate);
+            
+            // 切换竞标方式
+            function toggleBidType() {
+                const isFixed = this.value === 'fixed';
+                document.getElementById('fixedBidGroup').style.display = isFixed ? 'flex' : 'none';
+                document.getElementById('fixedBidGroup2').style.display = isFixed ? 'flex' : 'none';
+                document.getElementById('customBidGroup').className = isFixed ? 'hidden' : '';
+                
+                if(!isFixed) initBidInputs();
+            }
+            
+            // 初始化自定义利息输入框
+            function initBidInputs() {
+                const total = parseInt(document.getElementById('totalPeople').value) || 30;
+                let html = '';
+                for(let i = 2; i <= total; i++) {
+                    html += `
+                    <div class="input-row">
+                        <label>第${i}期利息：</label>
+                        <input type="number" id="bid_${i}" min="0" value="0">
+                    </div>`;
+                }
+                document.getElementById('bidInputs').innerHTML = html;
+            }
+            
+            // 主计算函数
+            function calculate() {
+                const totalPeople = parseInt(document.getElementById('totalPeople').value) || 30;
+                const baseMoney = parseInt(document.getElementById('baseMoney').value) || 1000;
+                const bidType = document.getElementById('bidType').value;
+                
+                // 获取利息数据
+                let bids = [0]; // 第1期会头无利息
+                if(bidType === 'fixed') {
+                    const firstBid = parseInt(document.getElementById('firstBid').value) || 300;
+                    const bidDecrease = parseInt(document.getElementById('bidDecrease').value) || 0;
+                    for(let i = 2; i <= totalPeople; i++) {
+                        bids.push(Math.max(0, firstBid - (i-2)*bidDecrease));
+                    }
+                } else {
+                    for(let i = 2; i <= totalPeople; i++) {
+                        bids.push(parseInt(document.getElementById(`bid_${i}`).value) || 0);
+                    }
+                }
+                
+                // 计算结果
+                let result = [];
+                let totalBids = 0; // 累计利息总和
+                
+                for(let period = 1; period <= totalPeople; period++) {
+                    // 当期得标者实收金额
+                    const received = baseMoney * totalPeople + totalBids;
+                    
+                    // 计算累计支出（假设自己在第period期得标）
+                    let totalPaid = 0;
+                    for(let p = 1; p <= totalPeople; p++) {
+                        if(p < period) {
+                            // 未得标期：只需缴纳基本会金
+                            totalPaid += baseMoney;
+                        } else if(p === period) {
+                            // 得标当期：无需缴纳
+                        } else {
+                            // 已得标后：每期缴纳基本会金+自己得标时的利息
+                            totalPaid += baseMoney + bids[period-1];
+                        }
+                    }
+                    
+                    // 净收益和收益率
+                    const netProfit = received - totalPaid;
+                    const profitRate = totalPaid > 0 ? (netProfit / totalPaid * 100).toFixed(2) : '0.00';
+                    
+                    result.push({
+                        period,
+                        bid: bids[period-1],
+                        received,
+                        totalPaid,
+                        netProfit,
+                        profitRate
+                    });
+                    
+                    // 更新累计利息（下一期开始前）
+                    if(period < totalPeople) {
+                        totalBids += bids[period];
+                    }
+                }
+                
+                // 显示结果
+                showResult(result, totalPeople, baseMoney);
+            }
+            
+            // 显示结果
+            function showResult(data, totalPeople, baseMoney) {
+                // 摘要信息
+                document.getElementById('summary').innerHTML = `
+                    <p><strong>标会规模：</strong> ${totalPeople}人参与，每期会金${baseMoney}元</p>
+                    <p><strong>总资金池：</strong> ${(totalPeople * baseMoney).toLocaleString()}元/期 × ${totalPeople}期 = ${(totalPeople * totalPeople * baseMoney).toLocaleString()}元</p>
+                `;
+                
+                // 生成表格
+                let html = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>得标期数</th>
+                            <th>竞标利息</th>
+                            <th>实收金额</th>
+                            <th>累计缴纳</th>
+                            <th>净收益</th>
+                            <th>收益率</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+                
+                data.forEach(item => {
+                    const profitClass = item.netProfit >= 0 ? 'profit' : 'loss';
+                    html += `
+                    <tr>
+                        <td>${item.period}</td>
+                        <td>${item.bid.toLocaleString()}</td>
+                        <td>${item.received.toLocaleString()}</td>
+                        <td>${item.totalPaid.toLocaleString()}</td>
+                        <td class="${profitClass}">${item.netProfit.toLocaleString()}</td>
+                        <td class="${profitClass}">${item.profitRate}%</td>
+                    </tr>`;
+                });
+                
+                html += `</tbody></table>`;
+                document.getElementById('resultTable').innerHTML = html;
+                
+                // 添加行点击高亮
+                document.querySelectorAll('#resultTable tbody tr').forEach(row => {
+                    row.addEventListener('click', function() {
+                        document.querySelectorAll('#resultTable tbody tr').forEach(r => {
+                            r.classList.remove('highlight');
+                        });
+                        this.classList.add('highlight');
+                    });
+                });
+            }
+        });
+    </script>
+</body>
+</html>
