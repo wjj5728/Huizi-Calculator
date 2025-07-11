@@ -3,27 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>闽南标会计算器 - 完整版</title>
+    <title>闽南标会计算器 - 最终修正版</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
-        h1 { color: #c00; text-align: center; }
-        .input-area { background: #f9f9f9; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .input-row { margin-bottom: 15px; display: flex; align-items: center; }
-        label { width: 150px; font-weight: bold; }
-        input, select { padding: 8px; width: 200px; border: 1px solid #ddd; border-radius: 4px; }
-        button { background: #c00; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
-        button:hover { background: #a00; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; }
-        th { background: #f2f2f2; }
-        .profit { color: green; font-weight: bold; }
-        .loss { color: red; font-weight: bold; }
-        .highlight { background-color: #ffeb3b; }
-        .hidden { display: none; }
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1 {
+            color: #c00;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .input-area {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .input-row {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        label {
+            width: 150px;
+            font-weight: bold;
+        }
+        input, select {
+            padding: 8px;
+            width: 200px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #c00;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            display: block;
+            margin: 20px auto;
+        }
+        button:hover {
+            background: #a00;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background: #f2f2f2;
+        }
+        .profit {
+            color: green;
+            font-weight: bold;
+        }
+        .loss {
+            color: red;
+            font-weight: bold;
+        }
+        .highlight {
+            background-color: #ffeb3b;
+        }
+        .hidden {
+            display: none;
+        }
+        .note {
+            color: #666;
+            font-style: italic;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
     <h1>闽南标会（会子）计算器</h1>
+    <p class="note">规则说明：已得标者每期需缴纳固定会金+自己得标时的利息，未得标者只需缴纳固定会金</p>
     
     <div class="input-area">
         <div class="input-row">
@@ -64,7 +130,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // 初始化
+            // 初始化自定义利息输入框
             initBidInputs();
             
             // 事件监听
@@ -100,21 +166,22 @@
                 document.getElementById('bidInputs').innerHTML = html;
             }
             
-            // 主计算函数
+            // 主计算函数（已修正第一期计算）
             function calculate() {
                 const totalPeople = parseInt(document.getElementById('totalPeople').value) || 30;
                 const baseMoney = parseInt(document.getElementById('baseMoney').value) || 1000;
                 const bidType = document.getElementById('bidType').value;
                 
                 // 获取利息数据
-                let bids = [0]; // 第1期会头无利息
+                let bids = [];
                 if(bidType === 'fixed') {
                     const firstBid = parseInt(document.getElementById('firstBid').value) || 300;
                     const bidDecrease = parseInt(document.getElementById('bidDecrease').value) || 0;
-                    for(let i = 2; i <= totalPeople; i++) {
-                        bids.push(Math.max(0, firstBid - (i-2)*bidDecrease));
+                    for(let i = 1; i <= totalPeople; i++) {
+                        bids.push(i === 1 ? 0 : Math.max(0, firstBid - (i-2)*bidDecrease));
                     }
                 } else {
+                    bids.push(0); // 第一期无利息
                     for(let i = 2; i <= totalPeople; i++) {
                         bids.push(parseInt(document.getElementById(`bid_${i}`).value) || 0);
                     }
@@ -124,9 +191,26 @@
                 let result = [];
                 let totalBids = 0; // 累计利息总和
                 
-                for(let period = 1; period <= totalPeople; period++) {
-                    // 当期得标者实收金额
-                    const received = baseMoney * totalPeople + totalBids;
+                // 第一期特殊处理（会头）
+                const firstPeriodReceived = (totalPeople - 1) * baseMoney;
+                let firstPeriodPaid = 0;
+                for(let p = 2; p <= totalPeople; p++) {
+                    firstPeriodPaid += baseMoney; // 会头后续每期只需缴纳基本会金
+                }
+                result.push({
+                    period: 1,
+                    bid: 0,
+                    received: firstPeriodReceived,
+                    totalPaid: firstPeriodPaid,
+                    netProfit: firstPeriodReceived - firstPeriodPaid,
+                    profitRate: firstPeriodPaid > 0 ? 
+                        ((firstPeriodReceived - firstPeriodPaid) / firstPeriodPaid * 100).toFixed(2) : "0.00"
+                });
+                
+                // 从第二期开始计算
+                for(let period = 2; period <= totalPeople; period++) {
+                    // 当期得标者实收金额 = 基本会金×人数 + 之前累计利息
+                    const received = baseMoney * (totalPeople - 1) + totalBids;
                     
                     // 计算累计支出（假设自己在第period期得标）
                     let totalPaid = 0;
@@ -144,7 +228,7 @@
                     
                     // 净收益和收益率
                     const netProfit = received - totalPaid;
-                    const profitRate = totalPaid > 0 ? (netProfit / totalPaid * 100).toFixed(2) : '0.00';
+                    const profitRate = totalPaid > 0 ? (netProfit / totalPaid * 100).toFixed(2) : "0.00";
                     
                     result.push({
                         period,
@@ -170,7 +254,7 @@
                 // 摘要信息
                 document.getElementById('summary').innerHTML = `
                     <p><strong>标会规模：</strong> ${totalPeople}人参与，每期会金${baseMoney}元</p>
-                    <p><strong>总资金池：</strong> ${(totalPeople * baseMoney).toLocaleString()}元/期 × ${totalPeople}期 = ${(totalPeople * totalPeople * baseMoney).toLocaleString()}元</p>
+                    <p><strong>总资金池：</strong> ${baseMoney.toLocaleString()}元 × ${totalPeople}人 × ${totalPeople}期 = ${(totalPeople * totalPeople * baseMoney).toLocaleString()}元</p>
                 `;
                 
                 // 生成表格
