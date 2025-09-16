@@ -86,19 +86,44 @@
             margin-top: 5px;
         }
     </style>
+    <style>
+        .custom-bid-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 16px;
+        }
+        .custom-bid-cell {
+            width: 140px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+        .custom-bid-cell label {
+            font-size: 13px;
+            margin-bottom: 2px;
+            font-weight: normal;
+            width: 100%;
+            text-align: left;
+        }
+        .custom-bid-cell input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
 </head>
 <body>
     <h1>闽南标会（会子）计算器</h1>
     <p class="note">规则说明：已得标者每期需缴纳固定会金+自己得标时的利息，未得标者只需缴纳固定会金</p>
-    
+
     <div class="input-area">
         <div class="input-row">
             <label for="totalPeople">参与人数：</label>
-            <input type="number" id="totalPeople" min="2" value="30">
+            <input type="number" id="totalPeople" min="2" value="32">
         </div>
         <div class="input-row">
             <label for="baseMoney">每期会金（元）：</label>
-            <input type="number" id="baseMoney" min="100" value="1000">
+            <input type="number" id="baseMoney" min="100" value="3000">
         </div>
         <div class="input-row">
             <label for="bidType">竞标方式：</label>
@@ -121,7 +146,7 @@
         </div>
         <button id="calculateBtn">计算</button>
     </div>
-    
+
     <div id="result">
         <h2>计算结果</h2>
         <div id="summary"></div>
@@ -130,67 +155,126 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
+            // 本地缓存恢复
+            restoreInputs();
             // 初始化自定义利息输入框
             initBidInputs();
-            
+            // 如果上次选择的是自定义利息，自动切换显示自定义输入区域
+            if(document.getElementById('bidType').value === 'custom') {
+                // 触发一次toggleBidType，确保显示自定义区域
+                toggleBidType.call(document.getElementById('bidType'));
+                // 再次初始化自定义输入框，确保内容填充
+                initBidInputs();
+            }
+
             // 事件监听
-            document.getElementById('bidType').addEventListener('change', toggleBidType);
+            document.getElementById('bidType').addEventListener('change', function(e) {
+                toggleBidType.call(this);
+                saveInputs();
+            });
             document.getElementById('totalPeople').addEventListener('change', function() {
                 if(document.getElementById('bidType').value === 'custom') {
                     initBidInputs();
                 }
+                saveInputs();
             });
-            document.getElementById('calculateBtn').addEventListener('click', calculate);
-            
+            document.getElementById('baseMoney').addEventListener('change', saveInputs);
+            document.getElementById('firstBid').addEventListener('change', saveInputs);
+            document.getElementById('bidDecrease').addEventListener('change', saveInputs);
+            document.getElementById('calculateBtn').addEventListener('click', function() {
+                calculate();
+                saveInputs();
+            });
+
             // 切换竞标方式
             function toggleBidType() {
                 const isFixed = this.value === 'fixed';
                 document.getElementById('fixedBidGroup').style.display = isFixed ? 'flex' : 'none';
                 document.getElementById('fixedBidGroup2').style.display = isFixed ? 'flex' : 'none';
                 document.getElementById('customBidGroup').className = isFixed ? 'hidden' : '';
-                
+
                 if(!isFixed) initBidInputs();
             }
-            
+
             // 初始化自定义利息输入框
             function initBidInputs() {
-                const total = parseInt(document.getElementById('totalPeople').value) || 30;
+                const total = parseInt(document.getElementById('totalPeople').value) || 32;
                 let html = '';
-                for(let i = 2; i <= total; i++) {
-                    html += `
-                    <div class="input-row">
-                        <label>第${i}期利息：</label>
-                        <input type="number" id="bid_${i}" min="0" value="0">
-                    </div>`;
+                let customBids = (getInputsFromStorage() || {}).customBids || [];
+                // 时间处理函数，和主计算保持一致
+                const startYear = 2025;
+                const startMonth = 6;
+                function getPeriodDate(period) {
+                    let y = startYear + Math.floor((startMonth - 1 + period - 1) / 12);
+                    let m = (startMonth - 1 + period - 1) % 12 + 1;
+                    return `${y}-${m.toString().padStart(2, '0')}`;
                 }
+                html += '<div class="custom-bid-grid">';
+                const perRow = 6;
+                for(let i = 2; i <= total; i++) {
+                    let val = customBids[i-2] !== undefined ? customBids[i-2] : 0;
+                    html += `
+                        <div class="custom-bid-cell">
+                            <label for="bid_${i}">${i}期<br>(${getPeriodDate(i)})</label>
+                            <input type="number" id="bid_${i}" min="0" value="${val}">
+                        </div>`;
+                }
+                html += '</div>';
                 document.getElementById('bidInputs').innerHTML = html;
+                // 监听自定义利息输入
+                for(let i = 2; i <= total; i++) {
+                    document.getElementById(`bid_${i}`).addEventListener('change', saveInputs);
+                }
             }
-            
+
             // 主计算函数（已修正第一期计算）
             function calculate() {
-                const totalPeople = parseInt(document.getElementById('totalPeople').value) || 30;
-                const baseMoney = parseInt(document.getElementById('baseMoney').value) || 1000;
+                const totalPeople = parseInt(document.getElementById('totalPeople').value) || 32;
+                const baseMoney = parseInt(document.getElementById('baseMoney').value) || 3000;
                 const bidType = document.getElementById('bidType').value;
-                
+
                 // 获取利息数据
                 let bids = [];
+                let isPredicted = [];
                 if(bidType === 'fixed') {
                     const firstBid = parseInt(document.getElementById('firstBid').value) || 300;
                     const bidDecrease = parseInt(document.getElementById('bidDecrease').value) || 0;
                     for(let i = 1; i <= totalPeople; i++) {
                         bids.push(i === 1 ? 0 : Math.max(0, firstBid - (i-2)*bidDecrease));
+                        isPredicted.push(false);
                     }
                 } else {
                     bids.push(0); // 第一期无利息
+                    isPredicted.push(false);
+                    let lastVal = 0;
                     for(let i = 2; i <= totalPeople; i++) {
-                        bids.push(parseInt(document.getElementById(`bid_${i}`).value) || 0);
+                        let input = document.getElementById(`bid_${i}`).value;
+                        let val = parseInt(input);
+                        if(input === '' || val === 0 || isNaN(val)) {
+                            // 预测逻辑
+                            val = Math.max(200, lastVal - 20);
+                            isPredicted.push(true);
+                        } else {
+                            isPredicted.push(false);
+                        }
+                        bids.push(val);
+                        lastVal = val;
                     }
                 }
-                
+
                 // 计算结果
                 let result = [];
                 let totalBids = 0; // 累计利息总和
-                
+
+                // 时间处理
+                const startYear = 2025;
+                const startMonth = 6; // 1-12
+                function getPeriodDate(period) {
+                    let y = startYear + Math.floor((startMonth - 1 + period - 1) / 12);
+                    let m = (startMonth - 1 + period - 1) % 12 + 1;
+                    return `${y}-${m.toString().padStart(2, '0')}`;
+                }
+
                 // 第一期特殊处理（会头）
                 const firstPeriodReceived = (totalPeople - 1) * baseMoney;
                 let firstPeriodPaid = 0;
@@ -203,15 +287,17 @@
                     received: firstPeriodReceived,
                     totalPaid: firstPeriodPaid,
                     netProfit: firstPeriodReceived - firstPeriodPaid,
-                    profitRate: firstPeriodPaid > 0 ? 
-                        ((firstPeriodReceived - firstPeriodPaid) / firstPeriodPaid * 100).toFixed(2) : "0.00"
+                    profitRate: firstPeriodPaid > 0 ?
+                        ((firstPeriodReceived - firstPeriodPaid) / firstPeriodPaid * 100).toFixed(2) : "0.00",
+                    date: getPeriodDate(1),
+                    predicted: false
                 });
-                
+
                 // 从第二期开始计算
                 for(let period = 2; period <= totalPeople; period++) {
                     // 当期得标者实收金额 = 基本会金×人数 + 之前累计利息
                     const received = baseMoney * (totalPeople - 1) + totalBids;
-                    
+
                     // 计算累计支出（假设自己在第period期得标）
                     let totalPaid = 0;
                     for(let p = 1; p <= totalPeople; p++) {
@@ -225,30 +311,32 @@
                             totalPaid += baseMoney + bids[period-1];
                         }
                     }
-                    
+
                     // 净收益和收益率
                     const netProfit = received - totalPaid;
                     const profitRate = totalPaid > 0 ? (netProfit / totalPaid * 100).toFixed(2) : "0.00";
-                    
+
                     result.push({
                         period,
                         bid: bids[period-1],
                         received,
                         totalPaid,
                         netProfit,
-                        profitRate
+                        profitRate,
+                        date: getPeriodDate(period),
+                        predicted: isPredicted[period-1]
                     });
-                    
+
                     // 更新累计利息（下一期开始前）
                     if(period < totalPeople) {
                         totalBids += bids[period];
                     }
                 }
-                
+
                 // 显示结果
                 showResult(result, totalPeople, baseMoney);
             }
-            
+
             // 显示结果
             function showResult(data, totalPeople, baseMoney) {
                 // 摘要信息
@@ -256,13 +344,14 @@
                     <p><strong>标会规模：</strong> ${totalPeople}人参与，每期会金${baseMoney}元</p>
                     <p><strong>总资金池：</strong> ${baseMoney.toLocaleString()}元 × ${totalPeople}人 × ${totalPeople}期 = ${(totalPeople * totalPeople * baseMoney).toLocaleString()}元</p>
                 `;
-                
+
                 // 生成表格
                 let html = `
                 <table>
                     <thead>
                         <tr>
                             <th>得标期数</th>
+                            <th>时间</th>
                             <th>竞标利息</th>
                             <th>实收金额</th>
                             <th>累计缴纳</th>
@@ -271,23 +360,25 @@
                         </tr>
                     </thead>
                     <tbody>`;
-                
+
                 data.forEach(item => {
                     const profitClass = item.netProfit >= 0 ? 'profit' : 'loss';
+                    const predMark = item.predicted ? ' <span style="color:#999;font-size:12px;">(预测)</span>' : '';
                     html += `
-                    <tr>
+                    <tr${item.predicted ? ' style="background:#f9f9f9;"' : ''}>
                         <td>${item.period}</td>
-                        <td>${item.bid.toLocaleString()}</td>
+                        <td>${item.date}</td>
+                        <td>${item.bid.toLocaleString()}${predMark}</td>
                         <td>${item.received.toLocaleString()}</td>
                         <td>${item.totalPaid.toLocaleString()}</td>
                         <td class="${profitClass}">${item.netProfit.toLocaleString()}</td>
                         <td class="${profitClass}">${item.profitRate}%</td>
                     </tr>`;
                 });
-                
+
                 html += `</tbody></table>`;
                 document.getElementById('resultTable').innerHTML = html;
-                
+
                 // 添加行点击高亮
                 document.querySelectorAll('#resultTable tbody tr').forEach(row => {
                     row.addEventListener('click', function() {
@@ -297,6 +388,38 @@
                         this.classList.add('highlight');
                     });
                 });
+            }
+
+            // 本地缓存相关
+            function saveInputs() {
+                const totalPeople = parseInt(document.getElementById('totalPeople').value) || 32;
+                const baseMoney = parseInt(document.getElementById('baseMoney').value) || 3000;
+                const bidType = document.getElementById('bidType').value;
+                const firstBid = parseInt(document.getElementById('firstBid').value) || 300;
+                const bidDecrease = parseInt(document.getElementById('bidDecrease').value) || 0;
+                let customBids = [];
+                if(bidType === 'custom') {
+                    for(let i = 2; i <= totalPeople; i++) {
+                        customBids.push(parseInt(document.getElementById(`bid_${i}`).value) || 0);
+                    }
+                }
+                localStorage.setItem('huiziInputs', JSON.stringify({
+                    totalPeople, baseMoney, bidType, firstBid, bidDecrease, customBids
+                }));
+            }
+            function getInputsFromStorage() {
+                try {
+                    return JSON.parse(localStorage.getItem('huiziInputs')) || {};
+                } catch(e) { return {}; }
+            }
+            function restoreInputs() {
+                const data = getInputsFromStorage();
+                if(!data) return;
+                if(data.totalPeople) document.getElementById('totalPeople').value = data.totalPeople;
+                if(data.baseMoney) document.getElementById('baseMoney').value = data.baseMoney;
+                if(data.bidType) document.getElementById('bidType').value = data.bidType;
+                if(data.firstBid !== undefined) document.getElementById('firstBid').value = data.firstBid;
+                if(data.bidDecrease !== undefined) document.getElementById('bidDecrease').value = data.bidDecrease;
             }
         });
     </script>
