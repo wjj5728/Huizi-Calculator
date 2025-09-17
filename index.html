@@ -119,7 +119,7 @@
     <div class="input-area">
         <div class="input-row">
             <label for="totalPeople">参与人数：</label>
-            <input type="number" id="totalPeople" min="2" value="32">
+            <input type="number" id="totalPeople" min="2" value="36">
         </div>
         <div class="input-row">
             <label for="baseMoney">每期会金（元）：</label>
@@ -198,7 +198,7 @@
 
             // 初始化自定义利息输入框
             function initBidInputs() {
-                const total = parseInt(document.getElementById('totalPeople').value) || 32;
+                const total = parseInt(document.getElementById('totalPeople').value) || 36;
                 let html = '';
                 let customBids = (getInputsFromStorage() || {}).customBids || [];
                 // 时间处理函数，和主计算保持一致
@@ -229,7 +229,7 @@
 
             // 主计算函数（已修正第一期计算）
             function calculate() {
-                const totalPeople = parseInt(document.getElementById('totalPeople').value) || 32;
+                const totalPeople = parseInt(document.getElementById('totalPeople').value) || 36;
                 const baseMoney = parseInt(document.getElementById('baseMoney').value) || 3000;
                 const bidType = document.getElementById('bidType').value;
 
@@ -408,7 +408,7 @@
 
             // 本地缓存相关
             function saveInputs() {
-                const totalPeople = parseInt(document.getElementById('totalPeople').value) || 32;
+                const totalPeople = parseInt(document.getElementById('totalPeople').value) || 36;
                 const baseMoney = parseInt(document.getElementById('baseMoney').value) || 3000;
                 const bidType = document.getElementById('bidType').value;
                 const firstBid = parseInt(document.getElementById('firstBid').value) || 300;
