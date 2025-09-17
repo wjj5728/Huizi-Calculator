@@ -353,6 +353,7 @@
                             <th>得标期数</th>
                             <th>时间</th>
                             <th>竞标利息</th>
+                            <th>当期收款</th>
                             <th>实收金额</th>
                             <th>累计缴纳</th>
                             <th>净收益</th>
@@ -364,11 +365,26 @@
                 data.forEach(item => {
                     const profitClass = item.netProfit >= 0 ? 'profit' : 'loss';
                     const predMark = item.predicted ? ' <span style="color:#999;font-size:12px;">(预测)</span>' : '';
+                    // 计算本期所有人本期实际缴纳的总额
+                    let currentTotalPay = 0;
+                    for(let person = 1; person <= totalPeople; person++) {
+                        if(person === item.period) continue; // 本期得标人不缴纳
+                        // 判断此人得标期
+                        let personBidPeriod = person; // 假设每个人第person期得标
+                        if(personBidPeriod < item.period) {
+                            // 已得标
+                            currentTotalPay += baseMoney + data[personBidPeriod-1].bid;
+                        } else {
+                            // 未得标
+                            currentTotalPay += baseMoney;
+                        }
+                    }
                     html += `
                     <tr${item.predicted ? ' style="background:#f9f9f9;"' : ''}>
                         <td>${item.period}</td>
                         <td>${item.date}</td>
                         <td>${item.bid.toLocaleString()}${predMark}</td>
+                        <td>${currentTotalPay.toLocaleString()}</td>
                         <td>${item.received.toLocaleString()}</td>
                         <td>${item.totalPaid.toLocaleString()}</td>
                         <td class="${profitClass}">${item.netProfit.toLocaleString()}</td>
