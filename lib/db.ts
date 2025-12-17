@@ -285,15 +285,39 @@ export async function listAllInputs() {
     LIMIT 50
   `;
   
-  // 调试日志
-  console.log('listAllInputs result type:', typeof result, 'isArray:', Array.isArray(result));
+  // 增强调试日志
+  console.log('listAllInputs - Database type:', isVercelPostgres ? 'Vercel Postgres' : 'Neon/Standard Postgres');
+  console.log('listAllInputs - result type:', typeof result, 'isArray:', Array.isArray(result));
+  
   if (!Array.isArray(result) && result) {
-    console.log('result keys:', Object.keys(result));
+    console.log('listAllInputs - result keys:', Object.keys(result));
+    if (result.rows) {
+      console.log('listAllInputs - result.rows type:', typeof result.rows, 'isArray:', Array.isArray(result.rows), 'length:', result.rows?.length);
+    }
+    // 打印结果的部分内容以便调试（限制长度避免日志过长）
+    try {
+      const resultStr = JSON.stringify(result).substring(0, 500);
+      console.log('listAllInputs - result preview:', resultStr);
+    } catch (e) {
+      console.log('listAllInputs - result cannot be stringified');
+    }
+  } else if (Array.isArray(result)) {
+    console.log('listAllInputs - result is array, length:', result.length);
+    if (result.length > 0) {
+      console.log('listAllInputs - first item keys:', Object.keys(result[0]));
+      try {
+        console.log('listAllInputs - first item preview:', JSON.stringify(result[0]).substring(0, 300));
+      } catch (e) {
+        // ignore
+      }
+    }
   }
   
   // 处理不同客户端返回格式
   if (isVercelPostgres) {
-    return result.rows || [];
+    const rows = result.rows || [];
+    console.log('listAllInputs - Returning Vercel Postgres rows, length:', rows.length);
+    return rows;
   } else if (useSupabase) {
     // Supabase 已在上面处理
     return [];
@@ -301,13 +325,32 @@ export async function listAllInputs() {
     // Neon serverless (@neondatabase/serverless) 直接返回数组
     // 标准 postgres 可能返回对象 { rows: [...] }
     if (Array.isArray(result)) {
-      console.log('Returning array result, length:', result.length);
+      console.log('listAllInputs - Returning array result (Neon serverless), length:', result.length);
       return result;
     }
-    // 标准 postgres 返回 { rows: [...] }
-    const rows = result.rows || [];
-    console.log('Returning rows from object, length:', rows.length);
-    return rows;
+    
+    // 如果 result 有 rows 属性，使用它
+    if (result && typeof result === 'object' && 'rows' in result) {
+      const rows = result.rows || [];
+      console.log('listAllInputs - Returning rows from object, length:', rows.length);
+      return rows;
+    }
+    
+    // 如果 result 是对象但没有 rows，尝试直接使用（可能是单个对象）
+    if (result && typeof result === 'object' && !Array.isArray(result) && result !== null) {
+      // 检查是否有类似数组的结构
+      if (result.length !== undefined) {
+        console.log('listAllInputs - Result has length property, treating as array-like, length:', result.length);
+        return Array.from(result as any);
+      }
+      console.log('listAllInputs - Result is object but no rows property, returning as array:', [result]);
+      return [result];
+    }
+    
+    // 最后的回退
+    console.log('listAllInputs - Unexpected result format, returning empty array');
+    console.log('listAllInputs - Result:', result);
+    return [];
   }
 }
 
