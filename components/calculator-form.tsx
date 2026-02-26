@@ -101,7 +101,14 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
     };
     const results = calculate(inputsToUse);
     onCalculate(results, inputsToUse);
-    saveInputs(inputsToUse);
+  };
+
+  const handleSave = () => {
+    const inputsToSave: CalculatorInputs = {
+      ...inputs,
+      customBids: inputs.bidType === 'custom' ? customBids : undefined,
+    };
+    saveInputs(inputsToSave);
   };
 
   const handleInputChange = (field: keyof CalculatorInputs, value: any) => {
@@ -206,10 +213,15 @@ export function CalculatorForm({ onCalculate }: CalculatorFormProps) {
             onChange={setCustomBids}
           />
         )}
-
-        <Button onClick={handleCalculate} className="w-full md:w-auto">
-          计算
-        </Button>
+      
+        <div className="flex flex-col md:flex-row gap-2">
+          <Button onClick={handleCalculate} className="w-full md:w-auto">
+            计算
+          </Button>
+          <Button variant="outline" onClick={handleSave} className="w-full md:w-auto">
+            保存
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
